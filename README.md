@@ -1,5 +1,6 @@
 # Multivisio
-<<<<<<< HEAD
+
+
 
 ## Installation :
 
@@ -20,5 +21,3 @@ Install the packages specified in *requirements.txt* :
 ```bash
 pip install -r requirements.txt
 ```
-=======
->>>>>>> bd89d7c0456c005dbed3c07853679e21ce9a713e

@@ -35,27 +35,32 @@ def lienValisePersVideo(videoOrStream, model):
             class_name = model.names[int(label)]
             if class_name == "person":
                 person.append((int(xmin), int(ymin), int(xmax), int(ymax)))
-                #cv2.rectangle(frame, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (255, 0, 0), 2)  # Blue for person
+                cv2.rectangle(frame, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (255, 0, 0), 2)  # Blue for person
 
             if class_name == "suitcase":
                 suitcase.append((int(xmin), int(ymin), int(xmax), int(ymax)))
-                #cv2.rectangle(frame, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 255, 0), 2)  # Green for suitcase
+                cv2.rectangle(frame, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 255, 0), 2)  # Green for suitcase
 
         # Proximity check between persons and suitcases
-        for p in person:
+        for s in suitcase:
             deltaV = 80
             deltaH = 100
+            flag = False #This flag is True when a suitcase is near a person (else False to detect lost suitcase) AS A FIRST APPROX
 
-            for s in suitcase:
+            for p in person:
                 # Refine proximity check based on suitcase and person dimensions
                 if ((s[3] <= p[3] + deltaV) and (s[3] >= p[3] - deltaV)) and ((s[0] <= p[2] + deltaH) and (s[2] >= p[0] - deltaH)):
                     
                     # Draw a line connecting the center of the suitcase and the person
                     cv2.line(frame, (s[0] + int(0.5 * (s[2] - s[0])), s[1] + int(0.5 * (s[3] - s[1]))),
                              (p[0] + int(0.5 * (p[2] - p[0])), p[1] + int(0.5 * (p[3] - p[1]))), (255, 0, 0), 5)
+                    flag = True
                 else:
-                    
                     cv2.imwrite("image.png", frame[p[1]:p[3], p[0]:p[2]] );
+            if flag == False:
+                print("Lost suitcase detected")
+                return 1
+        
 
         # Show the frame with annotations
         cv2.imshow("output", frame)
