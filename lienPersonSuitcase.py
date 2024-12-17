@@ -9,21 +9,8 @@ video = 'ValiseTest.mp4'
 model = YOLO('weights/best.pt')
 
 
-def lienValisePersVideo(videoOrStream, model):
-    cameraIP=cv2.VideoCapture(videoOrStream)
-
-    if not cameraIP.isOpened():
-        print("Erreur 1")
-
-    cv2.namedWindow("output", cv2.WINDOW_NORMAL)  # Create window with freedom of dimensions
-    cv2.resizeWindow("output", int(1920/4), int(1080/4))
-
+def processFrame(frame, model):
     while True:
-        ret, frame = cameraIP.read()
-        if not ret:
-            print("Fin de la vidéo")
-            break
-
         suitcase = []
         person = []
         result = model(frame)
@@ -59,15 +46,9 @@ def lienValisePersVideo(videoOrStream, model):
                     cv2.imwrite("image.png", frame[p[1]:p[3], p[0]:p[2]] );
             if flag == False:
                 print("Lost suitcase detected")
-                return 1
+            return frame, flag #TODO : Return more precise things than juste flag, to be able to find the owner of a lost suitcase
+
         
-
-        # Show the frame with annotations
-        cv2.imshow("output", frame)
-
-        # Exit on 'q' key press
-        if cv2.waitKey(10) & 0xff == ord('q'):
-            break
 
     # Clean up resources
     cameraIP.release()
