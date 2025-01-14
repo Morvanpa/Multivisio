@@ -18,11 +18,12 @@ class State(Enum):
 
 class Multivisio():
     
-    def __init__(self, URLarray=["BusyAirport.mp4","ValiseTest.mp4"],weights='weights/best.pt'):
+    def __init__(self, URLarray=["ValiseTest.mp4","ValiseTest.mp4"],weights='weights/best.pt'):
         self.camlist = []
         self.camera_nb = len(URLarray) #TODO : Parsing on the URLArray input...
-        self.model = YOLO(weights)
+        self.models = [YOLO(weights) for k in range(self.camera_nb)]
         self.display = []
+        self.displaydone = 1
         self.state = State.WAITING
         self.init_display()
         self.images =np.empty(self.camera_nb, dtype=np.ndarray) #TODO : Change this to an empty list of images (ndarray types)
@@ -35,6 +36,7 @@ class Multivisio():
         self.exit = False
         self.threads = []
         self.lock = threading.Lock()
+        self.displaylock = threading.Condition()
         self.cond = threading.Condition()
         print("locks OK")
         for i in range(self.camera_nb):
@@ -52,30 +54,37 @@ class Multivisio():
             # Start all threads
             self.threads[i].start()
         with self.cond:
+            self.cond.wait_for(lambda: self.state == State.WAITING)
             # Take the conditionnal variable to change the state and wake up every thread
             self.state = State.PROCESSING
             self.cond.notify_all() 
             print("Launch : BEGINNING PROCESSING")
-        self.run()
+        self.show()
         return 0
         
+        
 
-    def run(self):
+    def show(self):
         """
         This function runs the main thread, which displays the images with the Display class in display.py
+        This function uses two conditionnal locks to be able to display images while the next ones are being processed without problems
         """
         while not self.exit: #TODO : Add a way to exit the loop when pressing a key or things like that. Also, add a way to control how many frames are processed each second (a way to control the framerate)
-            # Wait for the children to process, then display the results, while they begin calculating the next frame
+            # Wait for the children to process, then display the results, while they begin calculating the next frame : NOT ANYMORE,TOO COMPLICATED !!
             with self.cond:
                 self.cond.wait_for(lambda: self.state == State.DISPLAYING)
                 print("BEGIN DISPLAYING")
                 # Reset the processing states of every thread and put state to processing;
-                # Then, launch the display tasks so that processing and displaying are done in parallel.
+                print("DISPLAYING")
+                # Displaying the frames #TODO : Verify that this works as it was just changed !!!!!
+                for d in range(len(self.images)):
+                    print(type(self.images[d]))
+                    self.display[d].display(self.images[d])
+                # Displaying finished -> Processing
                 self.processingState.fill(1)
-                self.state = State.PROCESSING
+                self.state = State.PROCESSING 
                 self.cond.notify_all()
-            for d in range(len(self.display)):
-                self.display[d].display(self.images[d])
+                print("END DISPLAYING")
         return 0
 
     def seekLostBagage(self, cam_number):
@@ -90,28 +99,51 @@ class Multivisio():
             print("BEGIN PROCESSING")
             # Process the next image
             ret, frame = self.camlist[cam_number].read()
-            self.images[cam_number] = frame
             if not ret:
                 print("Error : Couldn't read the frame from camera number %d",cam_number)
+            
             #TODO : Modify the lienPersonSuitcase.py to take in the frame and return the frame + bounding boxes and a boolean indicating if a suitcase is lost
-            self.images[cam_number], alertFlag = lienPersonSuitcase.processFrame(frame,self.model)
+            # PROCESSING
+            processed_frame, alertFlag = lienPersonSuitcase.processFrame(frame,self.models[cam_number])
+            print(type(processed_frame))
+            with self.displaylock:
+                self.displaylock.wait_for(lambda: self.displaydone == 1)
+                # Updating the image with the new frame
+                self.images[cam_number] = processed_frame
+                print("UPDATED FRAME")
+                print(self.images[cam_number])
+                # Signaling that the processing is finished -> new images can be displayed
+                self.displaylock.notify_all()
 
             # If problem, start the tracking phase
-            if alertFlag == 1: 
+            if alertFlag == 1 or self.state == State.TRACKING: 
+                print("Alert !")
                 with self.cond:
                     self.state = State.TRACKING
                     self.cond.notify_all()
-            #Signify that the processing is done; When the last thread is done processing, hand is given to the display thread
+
+            # Signal that the processing is done; When the last thread is done processing, hand is given to the display thread
             else:
-                self.lock.acquire()
-                self.processingState[cam_number] = 0
-                if self.nbpendingthreads() == 0:
-                    self.state = State.DISPLAYING
-                    self.cond.notify_all()
-                self.lock.release()
+                with self.cond:
+                    # Critical section
+                    self.processingState[cam_number] = 0
+                    if self.nbpendingthreads() == 0:
+                        self.displaydone = 0
+                        self.state = State.DISPLAYING
+                        self.cond.notify_all()
+                    # End of critical section
             print("END PROCESSING")
 
-    
+    def bagageOwnerTracking(self): #TODO : complete this function : What inputs, what outputs ?
+            while True: # TODO : Make a condition that allows to manually stop tracking/automatically stop if not found
+                with self.cond: #Wait for the condition to signal that the tracking can start
+                    self.cond.wait_for(lambda: self.state == State.TRACKING)
+                    print("THEORETICALLY TRACKING")
+                    # Here we would put the code for tracking 
+                    # When Tracking is finished, begin everything again
+                    self.state = State.DISPLAYING
+                    self.cond.notify_all()
+                pass
 
     def init_display(self):
         """
@@ -122,11 +154,7 @@ class Multivisio():
         print("INIT DISPLAY OK !")
         return 0
     
-    def bagageOwnerTracking(self): #TODO : complete this function : What inputs, what outputs ?
-        while True:
-            with self.cond: #Wait for the condition to signal that the tracking can start
-                self.cond.wait_for(lambda: self.state == State.TRACKING)
-            pass
+    
 
     def nbpendingpthreads():
         """

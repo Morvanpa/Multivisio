@@ -1,7 +1,6 @@
 import numpy as np
 from ultralytics import YOLO
 import cv2
-import os
 
 
 
@@ -9,7 +8,7 @@ def processFrame(frame, model):
     while True:
         suitcase = []
         person = []
-        result = model.predict(frame)
+        result = model.predict(frame,verbose=False)
         for detection in result[0].boxes:
             xmin, ymin, xmax, ymax = detection.xyxy[0].cpu().numpy()
             confidence = detection.conf.cpu().numpy()
@@ -42,6 +41,7 @@ def processFrame(frame, model):
                     cv2.imwrite("image.png", frame[p[1]:p[3], p[0]:p[2]] );
             if flag == False:
                 print("Lost suitcase detected")
+            print(frame)
             return frame, flag #TODO : Return more precise things than juste flag, to be able to find the owner of a lost suitcase
 
         
