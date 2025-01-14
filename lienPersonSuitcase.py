@@ -1,19 +1,15 @@
 import numpy as np
 from ultralytics import YOLO
 import cv2
+import os
 
-
-url = 'http://172.20.10.12:81/stream'
-video = 'ValiseTest.mp4'
-
-model = YOLO('weights/best.pt')
 
 
 def processFrame(frame, model):
     while True:
         suitcase = []
         person = []
-        result = model(frame)
+        result = model.predict(frame)
         for detection in result[0].boxes:
             xmin, ymin, xmax, ymax = detection.xyxy[0].cpu().numpy()
             confidence = detection.conf.cpu().numpy()
@@ -56,4 +52,7 @@ def processFrame(frame, model):
 
 
 if __name__ == "__main__":
-    lienValisePersVideo(video, model)
+    url = 'http://172.20.10.12:81/stream'
+    video = 'ValiseTest.mp4'
+    model = YOLO('weights/best.pt')
+    processFrame(video, model)

@@ -5,16 +5,20 @@ import threading
 from enum import Enum
 import lienPersonSuitcase
 import numpy as np
+import os
 
+os.environ['YOLO_VERBOSE'] = 'False'
 class State(Enum):
     WAITING = 0
     PROCESSING = 1
     DISPLAYING = 2
     TRACKING = 3
 
+
+
 class Multivisio():
     
-    def __init__(self, URLarray=["BusyAirport.mp4"],weights='weights/best.pt'):
+    def __init__(self, URLarray=["BusyAirport.mp4","ValiseTest.mp4"],weights='weights/best.pt'):
         self.camlist = []
         self.camera_nb = len(URLarray) #TODO : Parsing on the URLArray input...
         self.model = YOLO(weights)
@@ -27,16 +31,62 @@ class Multivisio():
             self.camlist.append(cv.VideoCapture(URLarray[i]))
             if not self.camlist[i].isOpened():
                 print("Error : The camera number %d couldn't be accessed",i)
-        print("Init OK !")
-
+        print("Init OK")
+        self.exit = False
+        self.threads = []
+        self.lock = threading.Lock()
+        self.cond = threading.Condition()
+        print("locks OK")
+        for i in range(self.camera_nb):
+            # Create threads without starting them
+            self.threads.append(threading.Thread(target=self.seekLostBagage, args=[i]))
+        self.threads.append(threading.Thread(target=self.bagageOwnerTracking))
+        print("Threads Created")
         
 
+    def launch(self):
+        """
+        This function allows the launching of the program
+        """
+        for i in range(len(self.threads)):
+            # Start all threads
+            self.threads[i].start()
+        with self.cond:
+            # Take the conditionnal variable to change the state and wake up every thread
+            self.state = State.PROCESSING
+            self.cond.notify_all() 
+            print("Launch : BEGINNING PROCESSING")
+        self.run()
+        return 0
+        
+
+    def run(self):
+        """
+        This function runs the main thread, which displays the images with the Display class in display.py
+        """
+        while not self.exit: #TODO : Add a way to exit the loop when pressing a key or things like that. Also, add a way to control how many frames are processed each second (a way to control the framerate)
+            # Wait for the children to process, then display the results, while they begin calculating the next frame
+            with self.cond:
+                self.cond.wait_for(lambda: self.state == State.DISPLAYING)
+                print("BEGIN DISPLAYING")
+                # Reset the processing states of every thread and put state to processing;
+                # Then, launch the display tasks so that processing and displaying are done in parallel.
+                self.processingState.fill(1)
+                self.state = State.PROCESSING
+                self.cond.notify_all()
+            for d in range(len(self.display)):
+                self.display[d].display(self.images[d])
+        return 0
+
     def seekLostBagage(self, cam_number):
-        print('I am a thread')
+        """
+        This method runs on a thread and analyzes a camera to find abandonned luggage
+        """
+        print('I am thread %d'%cam_number)
         while True:
             #Wait for the condition to signal that the processing can start
-            with cond:
-                cond.wait_for(lambda: self.state == State.PROCESSING)
+            with self.cond:
+                self.cond.wait_for(lambda: self.state == State.PROCESSING)
             print("BEGIN PROCESSING")
             # Process the next image
             ret, frame = self.camlist[cam_number].read()
@@ -48,21 +98,19 @@ class Multivisio():
 
             # If problem, start the tracking phase
             if alertFlag == 1: 
-                with cond:
+                with self.cond:
                     self.state = State.TRACKING
-                    cond.notify_all()
+                    self.cond.notify_all()
             #Signify that the processing is done; When the last thread is done processing, hand is given to the display thread
             else:
-                lock.acquire()
+                self.lock.acquire()
                 self.processingState[cam_number] = 0
                 if self.nbpendingthreads() == 0:
                     self.state = State.DISPLAYING
-                    cond.notify_all()
-                lock.release()
+                    self.cond.notify_all()
+                self.lock.release()
             print("END PROCESSING")
 
-            
-            
     
 
     def init_display(self):
@@ -76,8 +124,8 @@ class Multivisio():
     
     def bagageOwnerTracking(self): #TODO : complete this function : What inputs, what outputs ?
         while True:
-            with cond: #Wait for the condition to signal that the tracking can start
-                cond.wait_for(lambda: self.state == State.TRACKING)
+            with self.cond: #Wait for the condition to signal that the tracking can start
+                self.cond.wait_for(lambda: self.state == State.TRACKING)
             pass
 
     def nbpendingpthreads():
@@ -86,29 +134,10 @@ class Multivisio():
         """
         return sum(mv.processingState)
 
+    
+
 if __name__ == "__main__":
     mv = Multivisio()
-    exit = False
-    threads = []
-    lock = threading.Lock()
-    cond = threading.Condition()
-    for i in range(mv.camera_nb):
-        threads.append(threading.Thread(target=mv.seekLostBagage, args=[i]))
-        threads[i].start()
-    threads.append(threading.Thread(target=mv.bagageOwnerTracking))
-    threads[-1].start()
-    with cond:
-        mv.state = State.PROCESSING
-        cond.notify_all() 
-    print("BEGIN PROCESSING; START OK")
-    while not exit: #TODO : Add a way to exit the loop when pressing a key or things like that. Also, add a way to control how many frames are processed each second (a way to control the framerate)
-        # Wait for the children to process, then display the results, while they begin calculating the next frame
-        with cond:
-            cond.wait_for(lambda: mv.state == State.DISPLAYING)
-            print("BEGIN DISPLAYING")
-            mv.processingState.fill(1) #Reset the processing states of every thread
-            mv.state = State.PROCESSING
-            cond.notify_all()
-        for d in range(len(mv.display)):
-            mv.display[d].display(mv.images[d])        
+    mv.launch()
+          
 
