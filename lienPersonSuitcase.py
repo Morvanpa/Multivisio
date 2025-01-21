@@ -41,7 +41,6 @@ def processFrame(frame, model):
                     cv2.imwrite("image.png", frame[p[1]:p[3], p[0]:p[2]] );
             if flag == False:
                 print("Lost suitcase detected")
-            print(frame)
             return frame, flag #TODO : Return more precise things than juste flag, to be able to find the owner of a lost suitcase
 
         
