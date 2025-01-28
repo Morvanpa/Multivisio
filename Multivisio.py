@@ -6,6 +6,7 @@ from enum import Enum
 import lienPersonSuitcase
 import numpy as np
 import os
+import sys
 
 os.environ['YOLO_VERBOSE'] = 'False'
 class State(Enum):
@@ -14,15 +15,18 @@ class State(Enum):
     DISPLAYING = 2
     TRACKING = 3
 
-
+sys.stdout = None # Deactivate prints and errors
 
 class Multivisio():
     
-    def __init__(self, URLarray=["ValiseTest.mp4","ValiseTest.mp4"],weights='weights/best.pt'):
+    def __init__(self, URLarray=["ValiseTest.mp4","train30fps.mp4","Valise.mp4"],weights='weights/best.pt'):
+        """
+        URL array : make sure all videos are the same size ! 
+        """
         self.camlist = []
         self.camera_nb = len(URLarray) #TODO : Parsing on the URLArray input...
         self.models = [YOLO(weights) for k in range(self.camera_nb)]
-        self.display = []
+        self.display = None
         self.state = State.WAITING
         self.init_display()
         self.images =np.empty(self.camera_nb, dtype=np.ndarray)
@@ -75,9 +79,7 @@ class Multivisio():
                 print("DISPLAYING")
 
                 # Displaying the frames TODO : Verify that this works as it was just changed !!!!!
-                for d in range(len(self.images)):
-                    print(type(self.images[d]))
-                    self.display[d].display(self.images[d])
+                self.display.display(self.images)
 
                 # Displaying finished -> Processing or Tracking
                 self.processingState.fill(1)
@@ -103,13 +105,13 @@ class Multivisio():
             print("ID: %d - BEGIN PROCESSING"%cam_number)
             # Process the next image
             ret, frame = self.camlist[cam_number].read()
+            print(type(frame))
             if not ret:
                 print("Error : Couldn't read the frame from camera number %d",cam_number)
             
             #TODO : Modify the lienPersonSuitcase.py to take in the frame and return the frame + bounding boxes and a boolean indicating if a suitcase is lost
             # PROCESSING
             processed_frame, alertFlag = lienPersonSuitcase.processFrame(frame,self.models[cam_number])
-            print(type(processed_frame))
 
             # Updating the image with the new frame
             self.images[cam_number] = processed_frame
@@ -152,8 +154,7 @@ class Multivisio():
         """
         Initializes the displays for all cameras, which will use the cv2 cam object to display the video streams
         """
-        for n in range(self.camera_nb):
-            self.display.append(display.Display())
+        self.display = display.Display()
         print("INIT DISPLAY OK !")
         return 0
     
