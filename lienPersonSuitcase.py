@@ -1,6 +1,7 @@
 import numpy as np
 from ultralytics import YOLO
 import cv2
+import time as t
 
 
 
@@ -8,9 +9,9 @@ def processFrame(frame, model):
     while True: #On peut l'enlever je pense ??
         suitcase = []
         person = []
+        t0 = t.time()
         result = model.predict(frame,verbose=False)
-        print("model prediction done")
-        print(result)
+        print("Prediction time : %d",t.time()-t0)
         for detection in result[0].boxes:
             xmin, ymin, xmax, ymax = detection.xyxy[0].cpu().numpy()
             confidence = detection.conf.cpu().numpy()

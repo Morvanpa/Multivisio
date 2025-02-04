@@ -7,6 +7,7 @@ import lienPersonSuitcase
 import numpy as np
 import os
 import sys
+import time as t
 
 os.environ['YOLO_VERBOSE'] = 'False'
 class State(Enum):
@@ -15,11 +16,11 @@ class State(Enum):
     DISPLAYING = 2
     TRACKING = 3
 
-sys.stdout = None # Deactivate prints and errors
+#sys.stdout = None # Deactivate prints and errors
 
 class Multivisio():
     
-    def __init__(self, URLarray=["ValiseTest.mp4","train30fps.mp4","Valise.mp4"],weights='weights/best.pt'):
+    def __init__(self, URLarray=["ValiseTest.mp4","ValiseTest.mp4","ValiseTest.mp4","ValiseTest.mp4"],weights='weights/best.pt'):
         """
         URL array : make sure all videos are the same size ! 
         """
@@ -76,9 +77,8 @@ class Multivisio():
             with self.cond:
                 self.cond.wait_for(lambda: self.state == State.DISPLAYING)
                 # Critical section
-                print("DISPLAYING")
 
-                # Displaying the frames TODO : Verify that this works as it was just changed !!!!!
+                # Displaying the frames
                 self.display.display(self.images)
 
                 # Displaying finished -> Processing or Tracking
@@ -87,7 +87,6 @@ class Multivisio():
                     self.state = State.TRACKING
                 else:
                     self.state = State.PROCESSING 
-                print("END DISPLAYING")
                 self.cond.notify_all()
 
                 # End of Critical section
@@ -97,15 +96,12 @@ class Multivisio():
         """
         This method runs on a thread and analyzes a camera to find abandonned luggage
         """
-        print('I am thread %d'%cam_number)
         while True:
             #Wait for the condition to signal that the processing can start
             with self.cond:
                 self.cond.wait_for(lambda: self.state == State.PROCESSING and self.processingState[cam_number] == 1)
-            print("ID: %d - BEGIN PROCESSING"%cam_number)
             # Process the next image
             ret, frame = self.camlist[cam_number].read()
-            print(type(frame))
             if not ret:
                 print("Error : Couldn't read the frame from camera number %d",cam_number)
             
@@ -115,14 +111,12 @@ class Multivisio():
 
             # Updating the image with the new frame
             self.images[cam_number] = processed_frame
-            print("ID: %d - UPDATED FRAME"%cam_number)
 
             # If problem, signal it. TODO : The tracking phase will be launched after the displaying
             if alertFlag == 1:
                 with self.alertLock:
                     # Critical section
                     self.alert = 1 
-                    print("ID: %d - Alert !"%cam_number)
                     # End of critical section
                 
             # Signal that the processing is done; When the last thread is done processing, hand is given to the display thread
@@ -131,10 +125,8 @@ class Multivisio():
                 self.processingState[cam_number] = 0
                 if self.nbpendingthreads() == 0:
                     self.state = State.DISPLAYING
-                    print("ID: %d - Changed state to DISPLAYING"%cam_number)
                     self.cond.notify_all()
                 # End of critical section
-            print("ID: %d - END PROCESSING"%cam_number)
 
     def bagageOwnerTracking(self): #TODO : complete this function : What inputs, what outputs ? It has to change the self.alert when the tracking wants to be disabled
             while True: # TODO : Make a condition that allows to manually stop tracking/automatically stop if not found

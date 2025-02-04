@@ -18,11 +18,9 @@ class Display():
     
     def scale_images(self,frames):
         desired_size = frames[0].shape[0],frames[0].shape[1]
-        print(desired_size)
         for i in range(1,len(frames)):
             f = frames[i]
             frames[i] = cv.resize(f, (desired_size[1],desired_size[0]))
-            print(frames[i].shape)
         return frames
 if __name__ == "__main__":
     display = Display()
