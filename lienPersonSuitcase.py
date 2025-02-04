@@ -1,19 +1,17 @@
 import numpy as np
 from ultralytics import YOLO
 import cv2
+import time as t
 
-
-url = 'http://172.20.10.12:81/stream'
-video = 'ValiseTest.mp4'
-
-model = YOLO('weights/best.pt')
 
 
 def processFrame(frame, model):
-    while True:
+    while True: #On peut l'enlever je pense ??
         suitcase = []
         person = []
-        result = model(frame)
+        t0 = t.time()
+        result = model.predict(frame,verbose=False)
+        print("Prediction time : %d",t.time()-t0)
         for detection in result[0].boxes:
             xmin, ymin, xmax, ymax = detection.xyxy[0].cpu().numpy()
             confidence = detection.conf.cpu().numpy()
@@ -27,12 +25,12 @@ def processFrame(frame, model):
             if class_name == "suitcase":
                 suitcase.append((int(xmin), int(ymin), int(xmax), int(ymax)))
                 cv2.rectangle(frame, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 255, 0), 2)  # Green for suitcase
-
+                
+        flag = True #This flag is True when a suitcase is near a person (else False to detect lost suitcase) AS A FIRST APPROX
         # Proximity check between persons and suitcases
         for s in suitcase:
             deltaV = 80
             deltaH = 100
-            flag = False #This flag is True when a suitcase is near a person (else False to detect lost suitcase) AS A FIRST APPROX
 
             for p in person:
                 # Refine proximity check based on suitcase and person dimensions
@@ -46,7 +44,7 @@ def processFrame(frame, model):
                     cv2.imwrite("image.png", frame[p[1]:p[3], p[0]:p[2]] );
             if flag == False:
                 print("Lost suitcase detected")
-            return frame, flag #TODO : Return more precise things than juste flag, to be able to find the owner of a lost suitcase
+        return frame, flag #TODO : Return more precise things than juste flag, to be able to find the owner of a lost suitcase
 
         
 
@@ -56,4 +54,7 @@ def processFrame(frame, model):
 
 
 if __name__ == "__main__":
-    lienValisePersVideo(video, model)
+    url = 'http://172.20.10.12:81/stream'
+    video = 'ValiseTest.mp4'
+    model = YOLO('weights/best.pt')
+    processFrame(video, model)
