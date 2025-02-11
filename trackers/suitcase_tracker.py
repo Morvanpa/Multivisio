@@ -37,6 +37,6 @@ class SuitcaseTracker:
             object_cls_name = id_name_dict[object_cls_id]
 
             if object_cls_name == 'suitcase':
-                suitcase_dict[track_id] = result
+                suitcase_dict[track_id] = {'bbox' : result, 'color' : (255,255,255)} #Default White
         return suitcase_dict
 

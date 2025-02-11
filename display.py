@@ -13,7 +13,9 @@ class Display():
         
         for k in range(len(frames)): #Add the squares, links, and minimap to the frame
             frame = frames[k]
-            info = imageInfo[k] #Format : info[x] is info about the ID number x
+            info = imageInfo[k][0] #Format : info[x] is info about the ID number x
+            info_suitcases = imageInfo[k][1]
+            info.update(info_suitcases) #Dangerous because we could lose information if a suitcase and a person have the same ID ! 
             newFrame = self.squares(frame, info)
             newFrame = self.link(newFrame)
             newFrame = self.map(newFrame)

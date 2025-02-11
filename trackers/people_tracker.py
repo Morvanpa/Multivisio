@@ -74,5 +74,4 @@ class PlayerTracker:
 
         else:
             player_dict = {}
-
         return player_dict

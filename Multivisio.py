@@ -9,6 +9,7 @@ import os
 import sys
 import time as t
 import trackers.people_tracker as peopleTracker
+import trackers.suitcase_tracker as suitcaseTracker
 
 os.environ['YOLO_VERBOSE'] = 'False'
 class State(Enum):
@@ -28,7 +29,7 @@ class Multivisio():
         self.camlist = []
         self.camera_nb = len(URLarray) #TODO : Parsing on the URLArray input...
         self.models = [YOLO(weights) for k in range(self.camera_nb)]
-        self.trackers = [peopleTracker.PlayerTracker("yolov10n.pt") for k in range(self.camera_nb)]  
+        self.trackers = [(peopleTracker.PlayerTracker("yolov10n.pt"),suitcaseTracker.SuitcaseTracker("yolov10n.pt")) for k in range(self.camera_nb)]  
         self.display = None
         self.state = State.WAITING
         self.alert = 0
@@ -111,14 +112,14 @@ class Multivisio():
             
             #TODO : Modify the lienPersonSuitcase.py to take in the frame and return the frame + bounding boxes and a boolean indicating if a suitcase is lost
             # PROCESSING
-            processed_info = self.trackers[cam_number].detect_frame(frame) #TODO : Change so that it does the detection. Maybe with a middleman code ?
+            processed_info = self.trackers[cam_number][0].detect_frame(frame) #TODO : Change so that it does the detection. Maybe with a middleman code ?
+            suitcase_info = self.trackers[cam_number][1].detect_frame(frame)
             alertFlag = 0 #TODO : Change so it alerts when needed
             #TODO : Change so that the output is the coordinates and not the finished frame and it still works ! 
 
             # Updating the image with the new frame
             self.images[cam_number] = frame #Original frame
-            self.imageInfo[cam_number] = processed_info #Information about the frame for the displaying process
-
+            self.imageInfo[cam_number] = (processed_info,suitcase_info) #Information about the frame for the displaying process
 
             # If problem, signal it. In this case, the tracking phase is launched after the displaying phase instead of the normal detection phase
             if alertFlag == 1:
