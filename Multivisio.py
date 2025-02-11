@@ -21,7 +21,7 @@ class State(Enum):
 
 class Multivisio():
     
-    def __init__(self, URLarray=["Test1.mp4","Test2.mp4"],weights='weights/best.pt'):
+    def __init__(self, URLarray=["input_videos/hall1.mp4","input_videos/hall2.mp4"],weights='weights/best.pt'):
         """
         URL array : make sure all videos are the same size ! 
         """
