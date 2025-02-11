@@ -8,6 +8,7 @@ import numpy as np
 import os
 import sys
 import time as t
+import trackers.people_tracker as peopleTracker
 
 os.environ['YOLO_VERBOSE'] = 'False'
 class State(Enum):
@@ -20,17 +21,20 @@ class State(Enum):
 
 class Multivisio():
     
-    def __init__(self, URLarray=["ValiseTest.mp4","ValiseTest.mp4","ValiseTest.mp4","ValiseTest.mp4"],weights='weights/best.pt'):
+    def __init__(self, URLarray=["Test1.mp4","Test2.mp4"],weights='weights/best.pt'):
         """
         URL array : make sure all videos are the same size ! 
         """
         self.camlist = []
         self.camera_nb = len(URLarray) #TODO : Parsing on the URLArray input...
         self.models = [YOLO(weights) for k in range(self.camera_nb)]
+        self.trackers = [peopleTracker.PlayerTracker("yolov10n.pt") for k in range(self.camera_nb)]  
         self.display = None
         self.state = State.WAITING
+        self.alert = 0
         self.init_display()
-        self.images =np.empty(self.camera_nb, dtype=np.ndarray)
+        self.images = np.empty(self.camera_nb, dtype=np.ndarray)
+        self.imageInfo = [0 for k in range(self.camera_nb)]
         self.processingState = np.ones(self.camera_nb)
         for i in range(self.camera_nb):
             self.camlist.append(cv.VideoCapture(URLarray[i]))
@@ -79,7 +83,7 @@ class Multivisio():
                 # Critical section
 
                 # Displaying the frames
-                self.display.display(self.images)
+                self.display.display(self.images,self.imageInfo)
 
                 # Displaying finished -> Processing or Tracking
                 self.processingState.fill(1)
@@ -107,12 +111,16 @@ class Multivisio():
             
             #TODO : Modify the lienPersonSuitcase.py to take in the frame and return the frame + bounding boxes and a boolean indicating if a suitcase is lost
             # PROCESSING
-            processed_frame, alertFlag = lienPersonSuitcase.processFrame(frame,self.models[cam_number])
+            processed_info = self.trackers[cam_number].detect_frame(frame) #TODO : Change so that it does the detection. Maybe with a middleman code ?
+            alertFlag = 0 #TODO : Change so it alerts when needed
+            #TODO : Change so that the output is the coordinates and not the finished frame and it still works ! 
 
             # Updating the image with the new frame
-            self.images[cam_number] = processed_frame
+            self.images[cam_number] = frame #Original frame
+            self.imageInfo[cam_number] = processed_info #Information about the frame for the displaying process
 
-            # If problem, signal it. TODO : The tracking phase will be launched after the displaying
+
+            # If problem, signal it. In this case, the tracking phase is launched after the displaying phase instead of the normal detection phase
             if alertFlag == 1:
                 with self.alertLock:
                     # Critical section
