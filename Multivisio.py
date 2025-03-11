@@ -8,6 +8,8 @@ import numpy as np
 import os
 import sys
 import time as t
+import trackers.people_tracker as peopleTracker
+import trackers.suitcase_tracker as suitcaseTracker
 
 os.environ['YOLO_VERBOSE'] = 'False'
 class State(Enum):
@@ -18,24 +20,33 @@ class State(Enum):
 
 #sys.stdout = None # Deactivate prints and errors
 
-class Multivisio():
+class Multivisio(): #TODO : Merge Suitcase tracker and people tracker to have only one tracker -> 2x less computation !! #TODO : Make it possible to show and calculate at the same time ?
     
-    def __init__(self, URLarray=["ValiseTest.mp4","ValiseTest.mp4","ValiseTest.mp4","ValiseTest.mp4"],weights='weights/best.pt'):
+    def __init__(self, URLarray=["input_videos/hall1.mp4","input_videos/hall2.mp4"],weights='weights/best.pt',target_fps = 5):
         """
         URL array : make sure all videos are the same size ! 
         """
+        
         self.camlist = []
         self.camera_nb = len(URLarray) #TODO : Parsing on the URLArray input...
         self.models = [YOLO(weights) for k in range(self.camera_nb)]
+        self.trackers = [(peopleTracker.PlayerTracker("yolov10n.pt"),suitcaseTracker.SuitcaseTracker("yolov10n.pt")) for k in range(self.camera_nb)]  
         self.display = None
         self.state = State.WAITING
-        self.init_display()
-        self.images =np.empty(self.camera_nb, dtype=np.ndarray)
+        self.alert = 0
+        self.images = np.empty(self.camera_nb, dtype=np.ndarray)
+        self.imageInfo = [0 for k in range(self.camera_nb)]
         self.processingState = np.ones(self.camera_nb)
         for i in range(self.camera_nb):
             self.camlist.append(cv.VideoCapture(URLarray[i]))
             if not self.camlist[i].isOpened():
                 print("Error : The camera number %d couldn't be accessed",i)
+        self.baseFPS = int(self.camlist[0].get(cv.CAP_PROP_FPS)) +1 #We suppose that all cameras have the same framerate !
+        self.targetFPS = target_fps
+        self.fpsRatio = int(self.baseFPS/self.targetFPS)
+        print(str(self.fpsRatio)+" = "+ str(self.baseFPS)+"/"+str(self.targetFPS))
+        self.frame_counter = [0 for k in range(self.camera_nb)]
+        self.init_display()
         print("Init OK")
         self.exit = False
         self.threads = []
@@ -79,7 +90,7 @@ class Multivisio():
                 # Critical section
 
                 # Displaying the frames
-                self.display.display(self.images)
+                self.display.display(self.images,self.imageInfo)
 
                 # Displaying finished -> Processing or Tracking
                 self.processingState.fill(1)
@@ -103,30 +114,35 @@ class Multivisio():
             # Process the next image
             ret, frame = self.camlist[cam_number].read()
             if not ret:
-                print("Error : Couldn't read the frame from camera number %d",cam_number)
-            
-            #TODO : Modify the lienPersonSuitcase.py to take in the frame and return the frame + bounding boxes and a boolean indicating if a suitcase is lost
-            # PROCESSING
-            processed_frame, alertFlag = lienPersonSuitcase.processFrame(frame,self.models[cam_number])
-
-            # Updating the image with the new frame
-            self.images[cam_number] = processed_frame
-
-            # If problem, signal it. TODO : The tracking phase will be launched after the displaying
-            if alertFlag == 1:
-                with self.alertLock:
+                print("Error : Couldn't read the frame from camera number %d" % cam_number)
+            if (self.frame_counter[cam_number])%self.fpsRatio == 0:
+                self.frame_counter[cam_number] += 1
+                #TODO : Modify the lienPersonSuitcase.py to take in the frame and return the frame + bounding boxes and a boolean indicating if a suitcase is lost
+                # PROCESSING
+                processed_info = self.trackers[cam_number][0].detect_frame(frame) #TODO : Change so that it does the detection. Maybe with a middleman code ?
+                suitcase_info = self.trackers[cam_number][1].detect_frame(frame)
+                alertFlag = 0 #TODO : Change so it alerts when needed
+                #TODO : Change so that the output is the coordinates and not the finished frame and it still works ! 
+                # Updating the image with the new frame
+                self.images[cam_number] = frame #Original frame
+                self.imageInfo[cam_number] = (processed_info,suitcase_info) #Information about the frame for the displaying process
+                # If problem, signal it. In this case, the tracking phase is launched after the displaying phase instead of the normal detection phase
+                if alertFlag == 1:
+                    with self.alertLock:
+                        # Critical section
+                        self.alert = 1 
+                        # End of critical section
+                # Signal that the processing is done; When the last thread is done processing, hand is given to the display thread
+                with self.cond:
                     # Critical section
-                    self.alert = 1 
+                    self.processingState[cam_number] = 0
+                    if self.nbpendingthreads() == 0:
+                        self.state = State.DISPLAYING
+                        self.cond.notify_all()
                     # End of critical section
-                
-            # Signal that the processing is done; When the last thread is done processing, hand is given to the display thread
-            with self.cond:
-                # Critical section
-                self.processingState[cam_number] = 0
-                if self.nbpendingthreads() == 0:
-                    self.state = State.DISPLAYING
-                    self.cond.notify_all()
-                # End of critical section
+            else:
+                self.frame_counter[cam_number] += 1
+        
 
     def bagageOwnerTracking(self): #TODO : complete this function : What inputs, what outputs ? It has to change the self.alert when the tracking wants to be disabled
             while True: # TODO : Make a condition that allows to manually stop tracking/automatically stop if not found
@@ -146,7 +162,7 @@ class Multivisio():
         """
         Initializes the displays for all cameras, which will use the cv2 cam object to display the video streams
         """
-        self.display = display.Display()
+        self.display = display.Display(self.targetFPS,self.camera_nb)
         print("INIT DISPLAY OK !")
         return 0
     
