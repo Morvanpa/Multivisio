@@ -31,7 +31,8 @@ class SuitcaseTracker:
         id_name_dict = results[0].names
         suitcase_dict = {}
         for box in results[0].boxes:
-            track_id = int(box.id.tolist()[0])
+            if box.id is not None:
+                track_id = int(box.id.tolist()[0])
             result = box.xyxy.tolist()[0]
             object_cls_id = box.cls.tolist()[0]
             object_cls_name = id_name_dict[object_cls_id]

@@ -1,20 +1,16 @@
 import cv2 as cv
 import numpy as np
-import time
 
 class Display():
     cv.namedWindow("Display", cv.WINDOW_NORMAL)  # Create scalable window for all displays to share
     def __init__(self,fps, camera_nb):
         self.displayFPS = fps
         self.processedFrames = [None for k in range(camera_nb)]
-        # self.lastDisplayTime = time.time()
 
     def display(self,frames, imageInfo):
         """ 
         Adds the specified bounding boxes and other things (?) to the frame and displays it
         """
-        #if (time.time() - self.lastDisplayTime) < 1/self.displayFPS:
-            # time.sleep((1/self.displayFPS)-(time.time()-self.lastDisplayTime)) #Caps the fps to the announced value (waits if its to fast) TODO : inactive wait instead of active wait ?       
         for k in range(len(frames)): #Add the squares, links, and minimap to the frame
             frame = frames[k]
             info = imageInfo[k][0] #Format : info[x] is info about the ID number x
@@ -27,8 +23,8 @@ class Display():
         self.processedFrames = self.scale_images(self.processedFrames) # Resize frames to match sizes
         full_frame = np.vstack(self.processedFrames) #concatenate frames in 1 big frame TODO : Make a different  function to concatenate everything in 1 image (App needs all images !)
         cv.imshow("Display",full_frame)
-        cv.waitKey(int(1000/self.displayFPS))
-        # self.lastDisplayTime = time.time()
+        #cv.waitKey(int(1000/self.displayFPS)) TODO : Use this line when the program is capable of handling displaying and computing in parallel !
+        cv.waitKey(1)
     
     def squares(self, frame, info):
         for i in info.keys():

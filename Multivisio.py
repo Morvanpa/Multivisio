@@ -22,7 +22,7 @@ class State(Enum):
 
 class Multivisio(): #TODO : Merge Suitcase tracker and people tracker to have only one tracker -> 2x less computation !! #TODO : Make it possible to show and calculate at the same time ?
     
-    def __init__(self, URLarray=["input_videos/hall1.mp4","input_videos/hall2.mp4"],weights='weights/best.pt',target_fps = 5):
+    def __init__(self, URLarray=["input_videos/hall1.mp4","input_videos/hall2.mp4"],weights='weights/best.pt',target_fps = 15):
         """
         URL array : make sure all videos are the same size ! 
         """
