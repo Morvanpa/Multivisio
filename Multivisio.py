@@ -10,6 +10,9 @@ import sys
 import time as t
 import trackers.people_tracker as peopleTracker
 import trackers.suitcase_tracker as suitcaseTracker
+from mini_map import MiniMap
+
+# Currently doing : Integration of the minimap
 
 os.environ['YOLO_VERBOSE'] = 'False'
 class State(Enum):
@@ -22,7 +25,7 @@ class State(Enum):
 
 class Multivisio(): #TODO : Merge Suitcase tracker and people tracker to have only one tracker -> 2x less computation !! #TODO : Make it possible to show and calculate at the same time ?
     
-    def __init__(self, URLarray=["input_videos/hall1.mp4","input_videos/hall2.mp4"],weights='weights/best.pt',target_fps = 5):
+    def __init__(self, URLarray=["input_videos/hall1.mp4","input_videos/hall2.mp4"],weights='weights/best.pt',target_fps = 10):
         """
         URL array : make sure all videos are the same size ! 
         """
@@ -58,6 +61,10 @@ class Multivisio(): #TODO : Merge Suitcase tracker and people tracker to have on
             self.threads.append(threading.Thread(target=self.seekLostBagage, args=[i]))
         self.threads.append(threading.Thread(target=self.bagageOwnerTracking))
         print("Threads Created")
+        self.minimap = [MiniMap() for k in range(self.camera_nb)]
+        self.keypoints = [[int(k) for k in [284,240,171,353,643,377,545,246]],[269,200,161,322,627,326,535,203]] #Default with hall1 & hall2
+        
+        
         
 
     def launch(self):
@@ -90,7 +97,7 @@ class Multivisio(): #TODO : Merge Suitcase tracker and people tracker to have on
                 # Critical section
 
                 # Displaying the frames
-                self.display.display(self.images,self.imageInfo)
+                self.display.display(self.images,self.imageInfo, self.minimap)
 
                 # Displaying finished -> Processing or Tracking
                 self.processingState.fill(1)
